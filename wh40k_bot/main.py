@@ -3,6 +3,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 
@@ -40,8 +41,14 @@ async def main():
     storage = RedisStorage.from_url(config.redis_url)
     
     # Инициализация бота
+    session = None
+    if config.proxy_url:
+        session = AiohttpSession(proxy=config.proxy_url)
+        session._connector_init["ssl"] = False
+
     bot = Bot(
         token=config.bot_token,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     

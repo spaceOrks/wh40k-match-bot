@@ -409,7 +409,14 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
     for field, field_name in fields_to_check:
         user_value = user_unit.get(field)
         official_value = official_unit.get(field)
-        
+
+        if field == "points":
+            if not compare_points(user_value, official_value):
+                user_pts = extract_points_info(user_value)
+                official_pts = extract_points_info(official_value)
+                errors.append(f"'{unit_name}': неверные {field_name} (указано: {user_pts}, должно: {official_pts})")
+            continue
+
         if user_value != official_value:
             # Детализируем ошибку
             if field == "points":
@@ -430,6 +437,24 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
         errors.append(f"'{unit_name}': имя должно быть '{official_unit.get('name')}'")
     
     return errors
+
+
+def compare_points(user_points, official_points) -> bool:
+    """Сравнить очки только по значимым полям: cost, models, keyword"""
+    if not user_points and not official_points:
+        return True
+    if not user_points or not official_points:
+        return False
+    if not isinstance(user_points, list) or not isinstance(official_points, list):
+        return user_points == official_points
+
+    def normalize(pts):
+        return sorted(
+            [{"cost": str(p.get("cost", "")), "models": str(p.get("models", "")), "keyword": p.get("keyword")} for p in pts],
+            key=lambda x: (x["cost"], x["models"])
+        )
+
+    return normalize(user_points) == normalize(official_points)
 
 
 def extract_points_info(points_data) -> str:
