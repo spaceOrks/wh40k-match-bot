@@ -10,6 +10,8 @@ dependencies = [
     "asyncpg>=0.29.0",
     "redis>=5.2.0",
     "python-dotenv>=1.0.1",
+    "aiohttp-socks>=0.11.0",
+    "pillow>=12.1.1",
 ]
 
 [project.scripts]

@@ -9,7 +9,9 @@ services:
       - redis
     environment:
       - DB_HOST=postgres
+      - DB_PORT=5432
       - REDIS_HOST=redis
+      - PROXY_URL=http://mow-it-proxy-haproxy.partner.ru:3128
 
   postgres:
     image: postgres:16-alpine
