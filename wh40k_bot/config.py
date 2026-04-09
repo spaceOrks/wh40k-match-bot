@@ -2,6 +2,10 @@ import os
 from dataclasses import dataclass, field
 from typing import List
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass
 class Config:
@@ -31,6 +35,9 @@ class Config:
     # Game settings
     default_deadline_hours: int = 24  # дефолтный дедлайн для отправки списков
     reminder_before_hours: int = 2    # напоминание за N часов до дедлайна
+
+    # Timezone offset for display and input (UTC+N), e.g. 10 for UTC+10
+    timezone_offset: int = field(default_factory=lambda: int(os.getenv("TIMEZONE_OFFSET", "0")))
 
     @property
     def db_url(self) -> str:

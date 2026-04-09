@@ -21,33 +21,17 @@ async def cmd_newgame(message: Message, session: AsyncSession, bot: Bot, **kwarg
     """
     Создать новую игру.
 
-    Формат с kwargs:
-    /newgame --user @player1 --user @player2 --name "Битва за Терру" --start 15.02.2026 18:00 --points 2000 --delay 24
+    Формат:
+    /newgame -u @player1 -u @player2 -n "Битва за Терру" -s 15.02.2026 18:00 -p 2000 -d 24
 
-    Краткие флаги:
-    -u = --user
-    -n = --name
-    -s = --start
-    -p = --points
-    -d = --delay
-
-    Старый формат (для совместимости):
-    /newgame @user1 @user2 "название" ДД.ММ.ГГГГ ЧЧ:ММ [очки] [дедлайн_часы]
+    Флаги:
+    -u / --user   — участник (минимум 2)
+    -n / --name   — название игры
+    -s / --start  — дата и время игры (ДД.ММ.ГГГГ ЧЧ:ММ)
+    -p / --points — лимит очков
+    -d / --delay  — дедлайн (часы до игры)
     """
-    from datetime import datetime
-    import shlex
-
-    text = message.text or ""
-
-    # Определяем формат команды
-    is_kwargs_format = '--' in text or ' -u ' in text or ' -n ' in text or ' -p ' in text or ' -d ' in text or ' -s ' in text
-
-    if is_kwargs_format:
-        # Новый kwargs формат
-        result = await parse_newgame_kwargs(message, session)
-    else:
-        # Старый формат для совместимости
-        result = await parse_newgame_legacy(message, session)
+    result = await parse_newgame_kwargs(message, session)
 
     if result is None:
         return
@@ -106,7 +90,6 @@ async def cmd_newgame(message: Message, session: AsyncSession, bot: Bot, **kwarg
 async def parse_newgame_kwargs(message: Message, session: AsyncSession):
     """Парсинг kwargs формата: --user @p1 --user @p2 --name "X" --start DD.MM.YYYY HH:MM --points 2000 --delay 24"""
     from datetime import datetime
-    import shlex
 
     text = message.text or ""
 
@@ -136,14 +119,16 @@ async def parse_newgame_kwargs(message: Message, session: AsyncSession):
     if name_match:
         title = name_match.group(1)
 
-    # Извлекаем --start (дата и время)
-    start_match = re.search(r'--start\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{1,2}):(\d{2})', text)
+    # Извлекаем --start (дата обязательна, время опционально, день/месяц могут быть однозначными)
+    start_match = re.search(r'--start\s+(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?', text)
     if start_match:
         day, month, year, hour, minute = start_match.groups()
         try:
-            scheduled_at = datetime(int(year), int(month), int(day), int(hour), int(minute))
+            from datetime import timedelta
+            local_dt = datetime(int(year), int(month), int(day), int(hour or 0), int(minute or 0))
+            scheduled_at = local_dt - timedelta(hours=config.timezone_offset)
         except ValueError:
-            await message.answer("❌ Неверный формат даты. Используйте --start ДД.ММ.ГГГГ ЧЧ:ММ")
+            await message.answer("❌ Неверный формат даты. Используйте -s ДД.ММ.ГГГГ или -s ДД.ММ.ГГГГ ЧЧ:ММ")
             return None
 
     # Извлекаем --points
@@ -193,118 +178,6 @@ async def parse_newgame_kwargs(message: Message, session: AsyncSession):
             participant_names.append(user.first_name)
         else:
             errors.append(f"@{username}")
-
-    return participant_ids, participant_usernames, participant_names, title, scheduled_at, points_limit, deadline_hours, errors
-
-
-async def parse_newgame_legacy(message: Message, session: AsyncSession):
-    """Парсинг старого формата: /newgame @u1 @u2 "название" ДД.ММ.ГГГГ ЧЧ:ММ [очки] [дедлайн]"""
-    from datetime import datetime
-
-    # Парсим упоминания пользователей
-    entities = message.entities or []
-    mentions = []
-
-    for entity in entities:
-        if entity.type == "mention":
-            # @username
-            username = message.text[entity.offset + 1:entity.offset + entity.length]
-            mentions.append({"type": "username", "value": username})
-        elif entity.type == "text_mention":
-            # Упоминание без username
-            mentions.append({
-                "type": "user",
-                "user_id": entity.user.id,
-                "first_name": entity.user.first_name,
-                "username": entity.user.username
-            })
-
-    if len(mentions) < 2:
-        await message.answer(
-            "❌ Укажите минимум 2 участников!\n\n"
-            "<b>Новый формат (рекомендуется):</b>\n"
-            "<code>/newgame -u @p1 -u @p2 -n \"Название\" -p 2000 -d 24</code>\n\n"
-            "<b>Старый формат:</b>\n"
-            "<code>/newgame @user1 @user2 \"Название\" ДД.ММ.ГГГГ ЧЧ:ММ очки дедлайн</code>\n\n"
-            "Используйте /help для подробностей.",
-            parse_mode="HTML"
-        )
-        return None
-
-    if len(mentions) > 10:
-        await message.answer("❌ Максимум 10 участников!")
-        return None
-
-    # Парсим название и дедлайн
-    text = message.text
-
-    # Убираем команду и упоминания
-    clean_text = re.sub(r'/newgame\s*', '', text)
-    clean_text = re.sub(r'@\w+', '', clean_text).strip()
-
-    title = None
-    deadline_hours = config.default_deadline_hours
-    scheduled_at = None
-    points_limit = None
-
-    # Ищем название в кавычках
-    title_match = re.search(r'"([^"]+)"', clean_text)
-    if title_match:
-        title = title_match.group(1)
-        clean_text = clean_text.replace(title_match.group(0), '').strip()
-
-    # Ищем дату и время (ДД.ММ.ГГГГ ЧЧ:ММ)
-    datetime_match = re.search(r'(\d{2})\.(\d{2})\.(\d{4})\s+(\d{1,2}):(\d{2})', clean_text)
-    if datetime_match:
-        day, month, year, hour, minute = datetime_match.groups()
-        try:
-            scheduled_at = datetime(int(year), int(month), int(day), int(hour), int(minute))
-            clean_text = clean_text.replace(datetime_match.group(0), '').strip()
-        except ValueError:
-            await message.answer("❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
-            return None
-
-    # Ищем числа (points_limit и deadline)
-    numbers = re.findall(r'(\d+)', clean_text)
-    if len(numbers) >= 2:
-        num1, num2 = int(numbers[0]), int(numbers[1])
-        if num1 > 100:
-            points_limit = num1
-            deadline_hours = num2
-        else:
-            deadline_hours = num1
-            if num2 > 100:
-                points_limit = num2
-    elif len(numbers) == 1:
-        num = int(numbers[0])
-        if num > 100:
-            points_limit = num
-        else:
-            deadline_hours = num
-
-    # Получаем информацию о пользователях
-    participant_ids = []
-    participant_usernames = []
-    participant_names = []
-    errors = []
-
-    user_repo = UserRepository(session)
-
-    for mention in mentions:
-        if mention["type"] == "user":
-            participant_ids.append(mention["user_id"])
-            participant_usernames.append(mention.get("username"))
-            participant_names.append(mention.get("first_name"))
-        else:
-            # Ищем пользователя по username в нашей базе
-            username = mention["value"]
-            user = await user_repo.get_by_username(username)
-            if user:
-                participant_ids.append(user.telegram_id)
-                participant_usernames.append(user.username)
-                participant_names.append(user.first_name)
-            else:
-                errors.append(f"@{username}")
 
     return participant_ids, participant_usernames, participant_names, title, scheduled_at, points_limit, deadline_hours, errors
 

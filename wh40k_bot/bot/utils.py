@@ -1,13 +1,32 @@
+from datetime import timedelta
+
+from wh40k_bot.config import config
 from wh40k_bot.db import Game, GameParticipant, GameStatus, Team
+
+
+def _to_local(dt):
+    """Конвертировать UTC datetime в локальное время по TIMEZONE_OFFSET"""
+    return dt + timedelta(hours=config.timezone_offset)
+
+
+def _tz_label():
+    offset = config.timezone_offset
+    if offset == 0:
+        return "UTC"
+    sign = "+" if offset > 0 else ""
+    return f"UTC{sign}{offset}"
 
 
 def format_game_info(game: Game, detailed: bool = False) -> str:
     """Форматирование информации об игре"""
-    title = game.title or f"Игра #{game.id}"
-    
+    if game.title:
+        title = f"{game.title} <code>#{game.id}</code>"
+    else:
+        title = f"Игра <code>#{game.id}</code>"
+
     # game.status может быть enum или строкой
     status_value = game.status.value if hasattr(game.status, 'value') else game.status
-    
+
     status_emoji = {
         "collecting": "📝",
         "ready": "✅",
@@ -15,7 +34,7 @@ def format_game_info(game: Game, detailed: bool = False) -> str:
         "finished": "🏁",
         "cancelled": "❌",
     }
-    
+
     status_text = {
         "collecting": "Сбор списков",
         "ready": "Готово к игре",
@@ -23,10 +42,10 @@ def format_game_info(game: Game, detailed: bool = False) -> str:
         "finished": "Завершена",
         "cancelled": "Отменена",
     }
-    
+
     emoji = status_emoji.get(status_value, "❓")
     status = status_text.get(status_value, status_value)
-    
+
     lines = [
         f"{emoji} <b>{title}</b>",
         f"Статус: {status}",
@@ -37,10 +56,10 @@ def format_game_info(game: Game, detailed: bool = False) -> str:
         lines.append(f"🎯 Лимит очков: {game.points_limit}")
     
     if game.deadline:
-        lines.append(f"⏰ Дедлайн списков: {game.deadline.strftime('%d.%m.%Y %H:%M')} UTC")
-    
+        lines.append(f"⏰ Дедлайн списков: {_to_local(game.deadline).strftime('%d.%m.%Y %H:%M')} {_tz_label()}")
+
     if game.scheduled_at:
-        lines.append(f"🕐 Дата игры: {game.scheduled_at.strftime('%d.%m.%Y %H:%M')} UTC")
+        lines.append(f"🕐 Дата игры: {_to_local(game.scheduled_at).strftime('%d.%m.%Y %H:%M')} {_tz_label()}")
     
     if game.winner_team:
         winner = "Команда A" if game.winner_team == Team.TEAM_A.value else "Команда B"
@@ -161,7 +180,7 @@ def format_reminder(game: Game, participant: GameParticipant) -> str:
         f"",
         f"Скоро дедлайн для отправки списка армии в игре <b>{title}</b>!",
         f"",
-        f"Дедлайн: {game.deadline.strftime('%d.%m.%Y %H:%M')} UTC",
+        f"Дедлайн: {_to_local(game.deadline).strftime('%d.%m.%Y %H:%M')} {_tz_label()}",
         f"",
         f"Отправьте ваш список командой /submit или просто отправьте текст/файл со списком."
     ]
