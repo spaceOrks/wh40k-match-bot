@@ -172,12 +172,15 @@ def find_faction_file(faction_name: str) -> Optional[str]:
         if os.path.exists(os.path.join(DATASOURCES_PATH, f"{mapped_file}.json")):
             return mapped_file
     
-    # Затем пробуем прямое совпадение с файлами
-    faction_normalized = faction_lower.replace(' ', '').replace('-', '').replace('_', '')
-    
+    # Затем пробуем прямое совпадение с файлами (стрипаем все спецсимволы включая апостроф)
+    def _normalize(s):
+        return s.lower().replace(' ', '').replace('-', '').replace('_', '').replace("'", '').replace("`", '')
+
+    faction_normalized = _normalize(faction_lower)
+
     for filename in os.listdir(DATASOURCES_PATH):
         if filename.endswith('.json'):
-            file_faction = filename.replace('.json', '').lower().replace(' ', '').replace('-', '').replace('_', '')
+            file_faction = _normalize(filename.replace('.json', ''))
             if file_faction == faction_normalized or faction_normalized in file_faction or file_faction in faction_normalized:
                 return filename.replace('.json', '')
     
