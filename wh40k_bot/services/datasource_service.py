@@ -359,8 +359,9 @@ def validate_army_list(json_data, check_on_attach: bool = False) -> ValidationRe
                     break
         
         # Строгая проверка — сравниваем все важные поля
-        unit_errors = validate_unit_strict(unit, official_unit, unit_name)
+        unit_errors, unit_warnings = validate_unit_strict(unit, official_unit, unit_name)
         errors.extend(unit_errors)
+        warnings.extend(unit_warnings)
     
     # Проверяем наличие warlord
     if not has_warlord:
@@ -423,13 +424,14 @@ def _strip_ui(obj):
     return obj
 
 
-def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -> List[str]:
+def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -> tuple:
     """
     Строгая валидация юнита — все поля должны совпадать с официальными.
-    Возвращает список ошибок.
+    Возвращает (errors, warnings). Очки — только предупреждение (часто меняются).
     """
     errors = []
-    
+    warnings = []
+
     # Поля которые должны полностью совпадать
     fields_to_check = [
         ("stats", "характеристики"),
@@ -442,7 +444,7 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
         ("wargear", "варгир"),
         ("points", "очки"),
     ]
-    
+
     for field, field_name in fields_to_check:
         user_value = user_unit.get(field)
         official_value = official_unit.get(field)
@@ -451,7 +453,7 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
             if not compare_points(user_value, official_value):
                 user_pts = extract_points_info(user_value)
                 official_pts = extract_points_info(official_value)
-                errors.append(f"'{unit_name}': неверные {field_name} (указано: {user_pts}, должно: {official_pts})")
+                warnings.append(f"⚠️ '{unit_name}': очки в datasources устарели (у вас: {user_pts}, в базе: {official_pts})")
             continue
 
         if _strip_ui(user_value) != _strip_ui(official_value):
@@ -472,8 +474,8 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
     # Проверяем имя (должно точно совпадать)
     if user_unit.get("name") != official_unit.get("name"):
         errors.append(f"'{unit_name}': имя должно быть '{official_unit.get('name')}'")
-    
-    return errors
+
+    return errors, warnings
 
 
 def compare_points(user_points, official_points) -> bool:

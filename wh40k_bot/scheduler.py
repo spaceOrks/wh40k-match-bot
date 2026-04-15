@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from datetime import datetime
 
 from aiogram import Bot
@@ -7,6 +8,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from wh40k_bot.bot.utils import format_reminder
 from wh40k_bot.config import config
 from wh40k_bot.services import ReminderService
+
+DATASOURCES_PATH = "/app/datasources"
+DATASOURCES_UPDATE_INTERVAL = 24 * 60 * 60  # раз в сутки
 
 
 class ReminderScheduler:
@@ -35,14 +39,20 @@ class ReminderScheduler:
     
     async def _run(self):
         """Основной цикл"""
+        tick = 0
         while self._running:
             try:
                 await self._check_reminders()
                 await self._check_expired()
                 await self._check_game_reminders()
+
+                # Обновляем datasources раз в сутки
+                if tick % (DATASOURCES_UPDATE_INTERVAL // 300) == 0:
+                    await self._update_datasources()
             except Exception as e:
                 print(f"Reminder scheduler error: {e}")
-            
+
+            tick += 1
             # Проверяем каждые 5 минут
             await asyncio.sleep(300)
     
@@ -128,3 +138,20 @@ class ReminderScheduler:
                         print(f"Failed to send game reminder to {participant.user.telegram_id}: {e}")
                 
                 await service.mark_game_reminder_sent(game.id)
+
+    async def _update_datasources(self):
+        """Обновить datasources через git pull"""
+        try:
+            result = subprocess.run(
+                ["git", "pull", "--ff-only"],
+                cwd=DATASOURCES_PATH,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                print(f"Datasources updated: {result.stdout.strip()}")
+            else:
+                print(f"Datasources update failed: {result.stderr.strip()}")
+        except Exception as e:
+            print(f"Datasources update error: {e}")

@@ -16,7 +16,7 @@ COPY . .
 COPY mission_pool ./mission_pool
 
 # Клонируем официальные datasources
-RUN git clone --depth=1 https://github.com/game-datacards/datasources.git /app/datasources
+RUN git clone --depth=1 --branch develop https://github.com/game-datacards/datasources.git /app/datasources
 
 # Запускаем бота
 CMD ["python", "-m", "wh40k_bot.main"]
