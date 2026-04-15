@@ -386,6 +386,21 @@ def validate_army_list(json_data, check_on_attach: bool = False) -> ValidationRe
     )
 
 
+_UI_FIELDS = {
+    "active", "showAbility", "showDescription", "showAtTop", "showInfo",
+    "showInvulnerableSave", "showDamagedMarker", "showName", "showDamagedAbility",
+}
+
+
+def _strip_ui(obj):
+    """Рекурсивно удалить UI-поля из объекта перед сравнением с datasources."""
+    if isinstance(obj, dict):
+        return {k: _strip_ui(v) for k, v in obj.items() if k not in _UI_FIELDS}
+    if isinstance(obj, list):
+        return [_strip_ui(i) for i in obj]
+    return obj
+
+
 def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -> List[str]:
     """
     Строгая валидация юнита — все поля должны совпадать с официальными.
@@ -417,7 +432,7 @@ def validate_unit_strict(user_unit: dict, official_unit: dict, unit_name: str) -
                 errors.append(f"'{unit_name}': неверные {field_name} (указано: {user_pts}, должно: {official_pts})")
             continue
 
-        if user_value != official_value:
+        if _strip_ui(user_value) != _strip_ui(official_value):
             # Детализируем ошибку
             if field == "points":
                 user_pts = extract_points_info(user_value)
