@@ -172,17 +172,19 @@ def find_faction_file(faction_name: str) -> Optional[str]:
     if not os.path.exists(DATASOURCES_PATH):
         return None
     
-    faction_lower = faction_name.lower().strip()
-    
+    # Нормализуем апострофы перед любым сравнением
+    faction_lower = _normalize_apostrophes(faction_name).lower().strip()
+
     # Сначала проверяем маппинг (для под-фракций типа Ultramarines -> space_marines)
     if faction_lower in FACTION_FILE_MAPPING:
         mapped_file = FACTION_FILE_MAPPING[faction_lower]
         if os.path.exists(os.path.join(DATASOURCES_PATH, f"{mapped_file}.json")):
             return mapped_file
-    
-    # Затем пробуем прямое совпадение с файлами (стрипаем все спецсимволы включая апостроф)
+
+    # Затем пробуем прямое совпадение с файлами (стрипаем все спецсимволы)
     def _normalize(s):
-        return s.lower().replace(' ', '').replace('-', '').replace('_', '').replace("'", '').replace("`", '')
+        s = _normalize_apostrophes(s).lower()
+        return s.replace(' ', '').replace('-', '').replace('_', '').replace("'", '')
 
     faction_normalized = _normalize(faction_lower)
 
@@ -191,7 +193,7 @@ def find_faction_file(faction_name: str) -> Optional[str]:
             file_faction = _normalize(filename.replace('.json', ''))
             if file_faction == faction_normalized or faction_normalized in file_faction or file_faction in faction_normalized:
                 return filename.replace('.json', '')
-    
+
     return None
 
 
@@ -401,6 +403,15 @@ _UI_FIELDS = {
     "active", "showAbility", "showDescription", "showAtTop", "showInfo",
     "showInvulnerableSave", "showDamagedMarker", "showName", "showDamagedAbility",
 }
+
+# Все варианты апострофа → ASCII '
+_APOSTROPHE_CHARS = "\u2019\u2018\u02bc\u02b9\u0060\u00b4"
+
+
+def _normalize_apostrophes(s: str) -> str:
+    for ch in _APOSTROPHE_CHARS:
+        s = s.replace(ch, "'")
+    return s
 
 
 def _strip_ui(obj):
