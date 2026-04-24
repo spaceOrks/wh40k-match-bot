@@ -1,0 +1,35 @@
+name: Deploy Bot
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/wh-match-bot
+            
+            # Сбрасываем локальные изменения, если они вдруг возникли на сервере
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Останавливаем и удаляем старые контейнеры + чистим старые образы (опционально)
+            docker compose down
+            
+            # Пауза
+            sleep 10
+            
+            # Собираем и запускаем
+            docker compose up -d --build
+            
+            # Опционально: удаляем неиспользуемые образы, чтобы не забивать диск
+            docker image prune -f
