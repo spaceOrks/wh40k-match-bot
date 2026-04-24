@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
 
 from wh40k_bot.bot import AdminMiddleware, DatabaseMiddleware, setup_routers
 from wh40k_bot.config import config
@@ -18,6 +19,31 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+async def setup_commands(bot: Bot) -> None:
+    user_commands = [
+        BotCommand(command="start", description="Начать работу с ботом"),
+        BotCommand(command="mygames", description="Ваши активные игры"),
+        BotCommand(command="mylists", description="Ваши списки армий"),
+        BotCommand(command="submit", description="Отправить список армии для игры"),
+        BotCommand(command="resubmit", description="Переотправить список армии"),
+        BotCommand(command="help", description="Справка"),
+    ]
+    admin_commands = user_commands + [
+        BotCommand(command="newgame", description="Создать игру"),
+        BotCommand(command="games", description="Список активных игр"),
+        BotCommand(command="game", description="Управление игрой"),
+        BotCommand(command="users", description="Список пользователей"),
+        BotCommand(command="admin", description="Админ-панель"),
+    ]
+
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+    for admin_id in config.admin_ids:
+        try:
+            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception:
+            pass
 
 
 async def main():
@@ -67,6 +93,9 @@ async def main():
     # Запуск планировщика напоминаний
     scheduler = ReminderScheduler(bot, session_maker)
     
+    # Регистрация команд в меню Telegram
+    await setup_commands(bot)
+
     try:
         logger.info("Starting bot...")
         await scheduler.start()
